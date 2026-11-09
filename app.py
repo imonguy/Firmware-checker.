@@ -219,7 +219,7 @@ with tab3:
         f"### 📊 Báo cáo phân tích chuyên sâu cho `{final_model}` (`{final_csc}`)"
     )
     if raw_data:
-      found_urls = re.findall(r"https?://[^\s<>"]+|www\.[^\s<>"]+", raw_data)
+      found_urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', raw_data)
       if found_urls:
         st.write("🔗 **Đường dẫn tải firmware trích xuất được:**")
         for u in found_urls:
