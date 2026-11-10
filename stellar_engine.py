@@ -1,20 +1,19 @@
 import random
 
 class StellarEngine:
-    # Từ điển Model thiết bị (Bắt buộc phải có để app.py không báo lỗi)
+    # Từ điển Model thiết bị
     POPULAR_MODELS = {
         "Galaxy S26 Ultra (SM-S948B)": "SM-S948B",
         "Galaxy S25 Ultra (SM-S938B)": "SM-S938B",
         "Galaxy S24 Ultra (SM-S928B)": "SM-S928B",
         "Galaxy Z Fold6 (SM-F956B)": "SM-F956B",
         "Galaxy Z Flip6 (SM-F741B)": "SM-F741B",
-        "Galaxy A55 5G (SM-A556B)": "SM-A556B"
+        "Galaxy A55 5G (SM-A556E)": "SM-A556E"
     }
 
     # Từ điển mã vùng khu vực (CSC)
     POPULAR_CSCS = {
         "XXV - Vietnam (Chính hãng VN)": "XXV",
-        "XEV - Vietnam (Đa mạng)": "XEV",
         "INS - India (Ấn Độ)": "INS",
         "EUX - Europe (Châu Âu)": "EUX",
         "BTU - United Kingdom (Anh)": "BTU",
