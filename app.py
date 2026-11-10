@@ -71,7 +71,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Khởi tạo session state lưu dữ liệu firmware thông qua StellarEngine
+# Khởi tạo session state lưu dữ liệu firmware mặc định
 if 'firmware_data' not in st.session_state:
     st.session_state['firmware_data'] = StellarEngine.parse_payload("SM-S928B", "XXV", "")
 
@@ -86,20 +86,21 @@ tab1, tab2, tab3 = st.tabs(["🔍 Tra cứu & Stellar", "🧠 Claude Deep Agent"
 with tab1:
     st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
     st.subheader("⚡ Stellar AI Fast Parser")
-    st.write("Xử lý dữ liệu thô an toàn, chống lỗi 403 từ Samsung FOTA.")
+    st.write("Chọn dòng máy và khu vực (CSC) để hệ thống trích xuất dữ liệu an toàn.")
     
     col1, col2 = st.columns(2)
     with col1:
-        model_input = st.text_input("Model thiết bị", value="SM-S928B")
+        selected_model_name = st.selectbox("Chọn Model thiết bị", list(StellarEngine.POPULAR_MODELS.keys()))
+        model_code = StellarEngine.POPULAR_MODELS[selected_model_name]
     with col2:
-        csc_input = st.text_input("Mã vùng CSC", value="XXV")
+        selected_csc_name = st.selectbox("Chọn Khu vực (CSC)", list(StellarEngine.POPULAR_CSCS.keys()))
+        csc_code = StellarEngine.POPULAR_CSCS[selected_csc_name]
         
     raw_payload = st.text_area("Dán FOTA Payload thô (tùy chọn)", placeholder="Dữ liệu JSON/XML từ nguồn cộng đồng...")
     
     if st.button("⚡ Chạy Stellar AI Parse", type="primary", use_container_width=True):
-        # Gọi module stellar_engine.py để xử lý
-        st.session_state['firmware_data'] = StellarEngine.parse_payload(model_input, csc_input, raw_payload)
-        st.success("⚡ Stellar AI đã bóc tách và lập chỉ mục thành công!")
+        st.session_state['firmware_data'] = StellarEngine.parse_payload(model_code, csc_code, raw_payload)
+        st.success(f"⚡ Stellar AI đã quét và bóc tách thành công cho {selected_model_name}!")
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Hiển thị kết quả dạng One UI Card
@@ -107,8 +108,8 @@ with tab1:
     st.markdown(f"""
     <div class="oneui-card">
         <div>
-            <span class="model-badge">Galaxy S24 Ultra ({fw['model']})</span>
-            <span class="csc-tag">{fw['csc']} / Vietnam</span>
+            <span class="model-badge">{selected_model_name.split(' (')[0]} ({fw['model']})</span>
+            <span class="csc-tag">{fw['csc']} / {selected_csc_name.split(' - ')[1]}</span>
         </div>
         <div style="clear: both;"></div>
         <div class="info-grid">
