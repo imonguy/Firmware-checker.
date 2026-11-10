@@ -1,241 +1,199 @@
-import json
-import re
-import time
-import requests
 import streamlit as st
+from stellar_engine import StellarEngine
+from claude_agent import ClaudeAgent
 
-# Cấu hình giao diện trang web
+# Cấu hình trang
 st.set_page_config(
-    page_title="Samsung One UI Software Update & FOTA Hub",
+    page_title="Samsung Firmware Hub",
     page_icon="📱",
-    layout="wide",
+    layout="centered"
 )
 
-# Kho dữ liệu Model từ 2023 đến 2026
-HISTORICAL_MODELS = {
-    "🔥 Galaxy S Series (2023 - 2026)": {
-        "Galaxy S26 Ultra (2026)": "SM-S948B",
-        "Galaxy S26+ (2026)": "SM-S946B",
-        "Galaxy S26 (2026)": "SM-S941B",
-        "Galaxy S25 Ultra (2025)": "SM-S938B",
-        "Galaxy S25+ (2025)": "SM-S936B",
-        "Galaxy S25 (2025)": "SM-S931B",
-        "Galaxy S24 Ultra (2024)": "SM-S928B",
-        "Galaxy S24+ (2024)": "SM-S926B",
-        "Galaxy S24 (2024)": "SM-S921B",
-        "Galaxy S23 Ultra (2023)": "SM-S918B",
-        "Galaxy S23+ (2023)": "SM-S916B",
-        "Galaxy S23 (2023)": "SM-S911B",
-    },
-    "📱 Galaxy Z Fold & Flip Series (2023 - 2026)": {
-        "Galaxy Z Fold8 Ultra (2026)": "SM-F978B",
-        "Galaxy Z Fold8 (2026)": "SM-F976B",
-        "Galaxy Z Flip8 (2026)": "SM-F766B",
-        "Galaxy Z Fold7 (2025)": "SM-F956B",
-        "Galaxy Z Flip7 (2025)": "SM-F751B",
-        "Galaxy Z Fold6 (2024)": "SM-F956B",
-        "Galaxy Z Flip6 (2024)": "SM-F741B",
-        "Galaxy Z Fold5 (2023)": "SM-F946B",
-        "Galaxy Z Flip5 (2023)": "SM-F731B",
-    },
-    "⚡ Galaxy A-Series (2023 - 2026)": {
-        "Galaxy A57 5G (2026)": "SM-A576B",
-        "Galaxy A37 5G (2026)": "SM-A376B",
-        "Galaxy A56 5G (2025)": "SM-A566B",
-        "Galaxy A36 5G (2025)": "SM-A366B",
-        "Galaxy A55 5G (2024)": "SM-A556B",
-        "Galaxy A35 5G (2024)": "SM-A356B",
-        "Galaxy A54 5G (2023)": "SM-A546B",
-        "Galaxy A34 5G (2023)": "SM-A346B",
-    },
-}
+# Giao diện CSS chuẩn One UI 9 (Cinnamon Bun Dark Theme)
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #0b0c0e;
+        color: #f0f2f5;
+    }
+    .oneui-card {
+        background: #181a20;
+        border-radius: 24px;
+        padding: 20px;
+        margin-bottom: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .model-badge {
+        font-size: 18px;
+        font-weight: 700;
+        color: #ffffff;
+    }
+    .csc-tag {
+        background: rgba(46, 107, 255, 0.15);
+        color: #2e6bff;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        float: right;
+    }
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        background: #222630;
+        padding: 14px;
+        border-radius: 18px;
+        margin-top: 14px;
+        font-size: 13px;
+    }
+    .info-item span {
+        display: block;
+        color: #9ca3af;
+        font-size: 11px;
+        margin-bottom: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .ai-badge-stellar {
+        color: #10b981;
+        font-weight: 600;
+    }
+    .pricing-card {
+        background: linear-gradient(135deg, #181a20, #222630);
+        border: 1px solid rgba(168, 85, 247, 0.3);
+        border-radius: 20px;
+        padding: 18px;
+        margin-bottom: 12px;
+        text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-WORLD_CSC = {
-    "🇻🇳 Việt Nam & Châu Á": {
-        "Việt Nam (XXV - Chính hãng / Unlocked duy nhất)": "XXV",
-        "Thái Lan (THL)": "THL",
-        "Indonesia (XSE)": "XSE",
-        "Malaysia (XME)": "XME",
-        "Singapore (XSP)": "XSP",
-        "Hàn Quốc (KOO - Bản quốc tế)": "KOO",
-        "Hồng Kông (TGY)": "TGY",
-        "Đài Loan (BRI)": "BRI",
-        "Ấn Độ (INS)": "INS",
-    },
-    "🇪🇺 Châu Âu & Các khu vực khác": {
-        "Đức (DBT - Unlocked)": "DBT",
-        "Anh (BTU - Unlocked)": "BTU",
-        "Pháp (XEF - Unlocked)": "XEF",
-        "Multi-CSC Châu Âu (OXM)": "OXM",
-        "Mỹ (XAA - Unlocked)": "XAA",
-        "Úc (XSA - Unlocked)": "XSA",
-    },
-}
+# Khởi tạo session state lưu dữ liệu firmware thông qua StellarEngine
+if 'firmware_data' not in st.session_state:
+    st.session_state['firmware_data'] = StellarEngine.parse_payload("SM-S928B", "XXV", "")
 
-# Sidebar cấu hình
-with st.sidebar:
-  st.header("⚙️ Cấu hình thiết bị & Vùng")
-  selected_series = st.selectbox(
-      "Chọn phân khúc dòng máy:", list(HISTORICAL_MODELS.keys())
-  )
-  device_options = HISTORICAL_MODELS[selected_series]
-  selected_device_name = st.selectbox(
-      "Chọn Model thiết bị:", list(device_options.keys())
-  )
-  default_model = device_options[selected_device_name]
+# Tiêu đề ứng dụng
+st.title("📱 Samsung Firmware Hub")
+st.caption("Multi-Agent Architecture | Stellar AI + Claude Master Brain")
 
-  st.divider()
+# Điều hướng Tabs chuẩn One UI
+tab1, tab2, tab3 = st.tabs(["🔍 Tra cứu & Stellar", "🧠 Claude Deep Agent", "💎 Gói Premium"])
 
-  region_choice = st.selectbox("Chọn khu vực CSC:", list(WORLD_CSC.keys()))
-  country_options = WORLD_CSC[region_choice]
-  selected_country_name = st.selectbox(
-      "Chọn Quốc gia / Vùng:", list(country_options.keys())
-  )
-  default_csc = country_options[selected_country_name]
-
-  st.success(
-      f"📌 Đang chọn:\n- **Model:** `{default_model}`\n- **CSC:** `{default_csc}`"
-  )
-
-  custom_model = st.text_input("Ghi đè Model (Tùy chỉnh):", value=default_model)
-  custom_csc = st.text_input("Ghi đè CSC (Tùy chỉnh):", value=default_csc)
-
-  final_model = custom_model.strip() if custom_model.strip() else default_model
-  final_csc = (
-      custom_csc.strip().upper() if custom_csc.strip() else default_csc
-  )
-
-if "fota_result" not in st.session_state:
-  st.session_state["fota_result"] = None
-
-st.title("📱 Samsung One UI Software Update & FOTA Hub")
-st.markdown(
-    "Hệ thống kiểm tra bản cập nhật trực tuyến mô phỏng giao diện **Cài đặt"
-    " (Settings) > Cập nhật phần mềm**, kết hợp bắt gói tin FOTA và **AI Agent**"
-    " phân tích sâu qua kết nối Internet."
-)
-
-tab1, tab2, tab3, tab4 = st.tabs([
-    "⚙️ Software Update (Cài đặt)",
-    "🌐 FOTA Inspector & Server Log",
-    "🤖 AI Agent & Deep Analysis",
-    "📥 Hướng dẫn Flash Odin",
-])
-
+# ================= TAB 1: TRA CỨU & STELLAR AI =================
 with tab1:
-  st.header("⚙️ Cập nhật phần mềm (Software Update)")
-  st.markdown(
-      "Mô phỏng màn hình cập nhật phần mềm One UI. Nhấn **Tải về và cài đặt**"
-      " để gửi yêu cầu trực tiếp đến máy chủ Samsung qua Internet."
-  )
+    st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
+    st.subheader("⚡ Stellar AI Fast Parser")
+    st.write("Xử lý dữ liệu thô an toàn, chống lỗi 403 từ Samsung FOTA.")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        model_input = st.text_input("Model thiết bị", value="SM-S928B")
+    with col2:
+        csc_input = st.text_input("Mã vùng CSC", value="XXV")
+        
+    raw_payload = st.text_area("Dán FOTA Payload thô (tùy chọn)", placeholder="Dữ liệu JSON/XML từ nguồn cộng đồng...")
+    
+    if st.button("⚡ Chạy Stellar AI Parse", type="primary", use_container_width=True):
+        # Gọi module stellar_engine.py để xử lý
+        st.session_state['firmware_data'] = StellarEngine.parse_payload(model_input, csc_input, raw_payload)
+        st.success("⚡ Stellar AI đã bóc tách và lập chỉ mục thành công!")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-  with st.container():
-    st.markdown(
-        f"""
-        <div style="padding: 20px; border-radius: 10px; background-color: #1e1e1e; border: 1px solid #333;">
-            <h3 style="margin: 0; color: #fff;">One UI 8.0 / 8.5 (Android 16)</h3>
-            <p style="color: #aaa; margin: 5px 0 15px 0;">Thiết bị: <b>{final_model}</b> | Mã vùng: <b>{final_csc}</b></p>
-            <hr style="border-color: #444;">
-            <p style="margin: 5px 0;">🔒 <b>Bản vá bảo mật gần nhất:</b> Cập nhật tự động</p>
-            <p style="margin: 5px 0;">🌐 <b>Trạng thái kết nối Internet:</b> Đã sẵn sàng gọi FOTA API</p>
+    # Hiển thị kết quả dạng One UI Card
+    fw = st.session_state['firmware_data']
+    st.markdown(f"""
+    <div class="oneui-card">
+        <div>
+            <span class="model-badge">Galaxy S24 Ultra ({fw['model']})</span>
+            <span class="csc-tag">{fw['csc']} / Vietnam</span>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        <div style="clear: both;"></div>
+        <div class="info-grid">
+            <div class="info-item">
+                <span>Mã Build (PDA)</span>
+                <strong>{fw['build']}</strong>
+            </div>
+            <div class="info-item">
+                <span>Hệ điều hành</span>
+                <strong>{fw['os']}</strong>
+            </div>
+            <div class="info-item">
+                <span>Bản vá bảo mật</span>
+                <strong>{fw['patch']}</strong>
+            </div>
+            <div class="info-item">
+                <span>Trạng thái xử lý</span>
+                <strong class="ai-badge-stellar">⚡ {fw['status']}</strong>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-  st.write("")
-  if st.button(
-      "📥 Tải về và cài đặt (Check for updates)",
-      type="primary",
-      use_container_width=True,
-  ):
-    progress_bar = st.progress(
-        0, text="Đang kết nối tới máy chủ FOTA Samsung..."
-    )
-    for percent_complete in range(100):
-      time.sleep(0.01)
-      if percent_complete == 40:
-        progress_bar.progress(40, text="Đang xác thực thông tin thiết bị...")
-      elif percent_complete == 80:
-        progress_bar.progress(
-            80, text=f"Đang kiểm tra gói FOTA cho {final_model} ({final_csc})..."
-        )
-    progress_bar.progress(100, text="Hoàn tất!")
-
-    url = "https://fota-cloud-dn.ospserver.net/firmware/check"
-    headers = {
-        "User-Agent": (
-            "Dalvik/2.1.0 (Linux; U; Android 16; "
-            + final_model
-            + " Build/AP3A.240905.015)"
-        ),
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": final_model,
-        "csc": final_csc,
-        "curFW": f"{final_model}/{final_csc}/{final_model}XXS6CXH1/{final_model}BOXM6CXH1",
-    }
-
-    try:
-      response = requests.post(url, json=payload, headers=headers, timeout=12)
-      st.session_state["fota_result"] = response.text
-
-      if response.status_code == 200 and len(response.text) > 0:
-        st.success(
-            "🎉 **Phát hiện gói cập nhật mới từ máy chủ Samsung!** Chuyển sang"
-            " tab 'AI Agent' để xem chi tiết."
-        )
-        st.text_area("Phản hồi thô từ Server:", response.text[:1000], height=200)
-      else:
-        st.warning(
-            f"⚠️ Máy chủ phản hồi mã {response.status_code}. Model hoặc CSC"
-            " này có thể chưa mở kênh FOTA công khai."
-        )
-    except Exception as e:
-      st.error(f"❌ Lỗi kết nối Internet / Timeout: {e}")
-
+# ================= TAB 2: CLAUDE DEEP AGENT =================
 with tab2:
-  st.header("🌐 FOTA Inspector & Server Log")
-  if st.button("📡 Gửi lệnh quét FOTA trực tiếp"):
-    url = "https://fota-cloud-dn.ospserver.net/firmware/check"
-    headers = {
-        "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 16)",
-        "Content-Type": "application/json",
-    }
-    payload = {"model": final_model, "csc": final_csc}
-    try:
-      res = requests.post(url, json=payload, headers=headers, timeout=10)
-      st.session_state["fota_result"] = res.text
-      st.code(res.text, language="xml")
-    except Exception as ex:
-      st.error(f"Lỗi: {ex}")
-
-with tab3:
-  st.header("🤖 AI Agent & Deep Build Analysis")
-  if st.button("🧠 Phân tích bản Build bằng AI Agent", type="primary"):
-    raw_data = st.session_state.get("fota_result")
-    st.markdown(
-        f"### 📊 Báo cáo phân tích chuyên sâu cho `{final_model}` (`{final_csc}`)"
+    st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
+    st.subheader("🧠 Claude Master Brain (PRO)")
+    st.write("Sử dụng module Claude Agent để phân tích chuyên sâu.")
+    
+    agent_mode = st.selectbox(
+        "Chọn tác vụ phân tích chuyên sâu",
+        ["Dịch & Tóm tắt Changelog One UI 9", "Chẩn đoán lỗi Odin qua Log file"]
     )
-    if raw_data:
-      found_urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', raw_data)
-      if found_urls:
-        st.write("🔗 **Đường dẫn tải firmware trích xuất được:**")
-        for u in found_urls:
-          st.code(u)
-      else:
-        st.info(
-            "Gói phản hồi hiện tại chưa trả về link trực tiếp. Cần tham số curFW"
-            " chính xác hơn."
-        )
+    
+    if "Changelog" in agent_mode:
+        changelog_input = st.text_area("Nhãn Changelog gốc từ Samsung", value="[One UI 9.0 Update]\n- Enhanced Cinnamon Bun transition animations.\n- Advanced on-device AI object segmentation.")
+        if st.button("🚀 Kích hoạt Claude Dịch Changelog", use_container_width=True):
+            result = ClaudeAgent.analyze_changelog(changelog_input)
+            st.markdown(f"""
+            <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; color:#f0f2f5;">
+                {result.replace(chr(10), '<br>')}
+            </div>
+            """, unsafe_allow_html=True)
     else:
-      st.warning("⚠️ Chưa có dữ liệu FOTA. Hãy chạy kiểm tra ở tab Cài đặt trước!")
+        odin_log_input = st.text_area("Dán nội dung log Odin lỗi", placeholder="Ví dụ: FAIL! Auth, PIT mismatch...")
+        if st.button("🛠️ Kích hoạt Claude Doctor", use_container_width=True):
+            result = ClaudeAgent.diagnose_odin_log(odin_log_input)
+            st.markdown(f"""
+            <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; color:#f0f2f5;">
+                {result.replace(chr(10), '<br>')}
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-with tab4:
-  st.header("📥 Hướng dẫn Flash Odin")
-  st.markdown("""
-    1. Tải phần mềm **Bifrost** trên GitHub để lấy file `.tar.md5`.
-    2. Đưa máy về **Download Mode**, mở **Odin** trên Windows.
-    3. Nạp file **BL, AP, CP, CSC** tương ứng và bấm Start.
-    """)
+# ================= TAB 3: GÓI PREMIUM (THÁNG / NĂM) =================
+with tab3:
+    st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
+    st.subheader("💎 Nâng cấp Tài khoản Pro")
+    st.write("Mở khóa toàn bộ sức mạnh của Claude Deep Agent.")
+    
+    col_p1, col_p2 = st.columns(2)
+    
+    with col_p1:
+        st.markdown("""
+        <div class="pricing-card">
+            <h3>Gói Tháng</h3>
+            <p style="font-size:22px; font-weight:700; color:#a855f7; margin:10px 0;">30.000đ</p>
+            <p style="font-size:12px; color:#9ca3af;">Thanh toán linh hoạt.<br>Hủy bất cứ lúc nào.</p>
+            <br>
+            <button style="width:100%; background:#2e6bff; border:none; color:white; padding:10px; border-radius:12px; font-weight:600; cursor:pointer;">Đăng ký Tháng</button>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_p2:
+        st.markdown("""
+        <div class="pricing-card" style="border-color: #2e6bff;">
+            <h3>Gói Năm <span style="font-size:11px; background:#2e6bff; padding:2px 6px; border-radius:6px;">Tiết kiệm 30%</span></h3>
+            <p style="font-size:22px; font-weight:700; color:#2e6bff; margin:10px 0;">250.000đ</p>
+            <p style="font-size:12px; color:#9ca3af;">Dùng trọn vẹn cả năm.<br>Ưu tiên tốc độ cao.</p>
+            <br>
+            <button style="width:100%; background:linear-gradient(135deg, #7c3aed, #db2777); border:none; color:white; padding:10px; border-radius:12px; font-weight:600; cursor:pointer;">Đăng ký Năm</button>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown("<p style='text-align:center; font-size:11px; color:#6b7280; margin-top:20px;'>Samsung Firmware Hub Pre-Alpha 2 — Modular Python Architecture</p>", unsafe_allow_html=True)
