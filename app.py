@@ -94,7 +94,6 @@ class SamfwCrawler:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 raw_text = soup.get_text(separator="\n", strip=True)[:10000]
                 
-                # Quét Regex tìm mã Build chuẩn
                 model_short = model.replace("SM-", "")
                 pattern = re.compile(rf"{model_short}[A-Z0-9]{{6,12}}", re.IGNORECASE)
                 for tag in soup.find_all(['a', 'td', 'span', 'div', 'h3']):
@@ -105,7 +104,6 @@ class SamfwCrawler:
         except Exception:
             pass
 
-        # Nếu không bắt được bằng regex, chuyển giao nội dung cho Gemini Agent phân tích thông minh
         if not extracted_build and raw_text:
             extracted_build = GeminiAgent.parse_samfw(raw_text, model, csc)
         elif not extracted_build:
@@ -138,4 +136,72 @@ with tab1:
     with col1:
         sel_model_name = st.selectbox("Model thiết bị", list(SamfwCrawler.POPULAR_MODELS.keys()))
         target_model = SamfwCrawler.POPULAR_MODELS[sel_model_name]
-    with
+    with col2:
+        sel_csc_name = st.selectbox("Khu vực (CSC)", list(SamfwCrawler.POPULAR_CSCS.keys()))
+        target_csc = SamfwCrawler.POPULAR_CSCS[sel_csc_name]
+        
+    if st.button("🚀 Quét dữ liệu từ Samfw", type="primary", use_container_width=True):
+        with st.spinner("Gemini Agent đang cào và phân tích firmware..."):
+            st.session_state['fw_result'] = SamfwCrawler.fetch_and_parse(target_model, target_csc)
+        st.success(f"🌐 Đã cập nhật dữ liệu thành công cho {sel_model_name}!")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    res = st.session_state['fw_result']
+    st.markdown(f"""
+    <div class="oneui-card">
+        <div>
+            <span class="model-badge">{sel_model_name.split(' (')[0]} ({res['model']})</span>
+            <span class="csc-badge">{res['csc']}</span>
+        </div>
+        <div style="clear: both;"></div>
+        <div class="info-grid">
+            <div class="info-item">
+                <span>Mã Build Thực Tế (PDA)</span>
+                <strong>{res['build']}</strong>
+            </div>
+            <div class="info-item">
+                <span>Hệ điều hành</span>
+                <strong>{res['os']}</strong>
+            </div>
+            <div class="info-item">
+                <span>Bản vá bảo mật</span>
+                <strong>{res['patch']}</strong>
+            </div>
+            <div class="info-item">
+                <span>Trạng thái kết nối</span>
+                <strong class="agent-status">⚡ {res['status']}</strong>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with tab2:
+    st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
+    st.subheader("🧠 Gemini Master Brain")
+    st.write("Đánh giá chuyên sâu bản dựng firmware và hỗ trợ chẩn đoán lỗi Odin.")
+    
+    action_mode = st.selectbox("Chọn tác vụ chuyên sâu", ["Phân tích toàn diện bản dựng hiện tại", "Chẩn đoán lỗi Odin qua Log"])
+    
+    if "Phân tích" in action_mode:
+        if st.button("🚀 Gửi yêu cầu phân tích cho Gemini", use_container_width=True):
+            with st.spinner("Gemini Agent đang lập báo cáo phân tích..."):
+                analysis = GeminiAgent.call_gemini(f"Hãy phân tích chi tiết phiên bản firmware {res['build']} của dòng máy {res['model']} khu vực {res['csc']}, đánh giá hiệu suất hệ thống trên One UI 9.")
+            st.markdown(f"""
+            <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; line-height: 1.6;">
+                {analysis.replace(chr(10), '<br>')}
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        log_input = st.text_area("Dán nội dung log Odin báo lỗi (FAIL!, Auth, PIT error...)")
+        if st.button("🛠️ Gemini Doctor Chẩn Đoán", type="primary", use_container_width=True):
+            if not log_input.strip():
+                st.warning("Vui lòng dán nội dung log Odin trước.")
+            else:
+                with st.spinner("Gemini Agent đang mổ xẻ mã lỗi..."):
+                    diag = GeminiAgent.diagnose_odin(log_input)
+                st.markdown(f"""
+                <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; line-height: 1.6;">
+                    {diag.replace(chr(10), '<br>')}
+                </div>
+                """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
