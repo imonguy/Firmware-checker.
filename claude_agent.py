@@ -1,35 +1,39 @@
-class ClaudeAgent:
-    @staticmethod
-    def analyze_changelog(changelog_text: str) -> str:
-        """
-        Claude Deep Agent: Phân tích và dịch nghĩa changelog chuẩn phong cách One UI 9.
-        """
-        if not changelog_text.strip():
-            changelog_text = "[One UI 9.0 Default Build] - Enhanced Cinnamon Bun UI animations & AI optimizations."
-            
-        return (
-            "🧠 **[Claude One UI 9 Master Brain Analysis]**\n\n"
-            f"• **Phạm vi phân tích:** Dựa trên nguồn dữ liệu thô ({len(changelog_text)} ký tự).\n"
-            "• **Hiệu ứng chuyển cảnh:** Tối ưu hóa mượt mà chuẩn giao diện Cinnamon Bun mới nhất.\n"
-            "• **Cải tiến AI:** Nâng cấp phân tách đối tượng trực tiếp trên thiết bị bằng NPU.\n"
-            "• **Đánh giá tổng quan:** Bản dựng ổn định, tối ưu hóa tiêu thụ pin và hiệu năng đồ họa."
-        )
+import anthropic
 
+class ClaudeAPIClient:
+    """Client chuyên biệt quản lý các tác vụ gọi Claude AI (Anthropic)"""
+    
     @staticmethod
-    def diagnose_odin_log(log_text: str) -> str:
-        """
-        Claude Odin Doctor: Đọc và chẩn đoán nguyên nhân lỗi khi flash ROM.
-        """
-        if not log_text.strip():
-            return "⚠️ Chưa nhận diện được chuỗi log lỗi. Vui lòng dán chính xác dòng báo lỗi từ Odin (ví dụ: `FAIL! (Auth)`)."
-        
-        upper_log = log_text.upper()
-        if "FAIL!" in upper_log or "ERROR" in upper_log:
-            return (
-                "🧠 **[Claude Odin Diagnostics Result]**\n\n"
-                "⚠️ **Phát hiện lỗi trong tiến trình flash!**\n"
-                "• **Nguyên nhân tiềm năng:** Sai phiên bản CSC, xung đột tệp PIT hoặc cáp kết nối USB không ổn định.\n"
-                "• **Khuyến nghị khắc phục:** Kiểm tra lại mã model, chuyển sang cổng USB khác và xác thực lại gói firmware chính hãng."
+    def call_claude(api_key: str, system_prompt: str, user_prompt: str) -> str:
+        if not api_key:
+            return "⚠️ Vui lòng nhập Anthropic API Key của bạn ở thanh Sidebar bên trái để kích hoạt AI."
+        try:
+            client = anthropic.Anthropic(api_key=api_key)
+            message = client.messages.create(
+                model="claude-3-5-sonnet-20241022", # Model Claude mạnh mẽ nhất cho lập trình và phân tích văn bản
+                max_tokens=1500,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}]
             )
-        else:
-            return "🧠 **[Claude Odin Diagnostics]:** Log sạch, không phát hiện mã lỗi nghiêm trọng trong chuỗi phản hồi."
+            return message.content[0].text
+        except Exception as e:
+            return f"❌ Lỗi kết nối tới Anthropic API: {str(e)}"
+
+    @classmethod
+    def parse_samfw_firmware(cls, api_key: str, raw_text: str, model: str, csc: str) -> str:
+        """Sử dụng Claude để bóc tách mã Build firmware chuẩn xác từ nội dung Samfw"""
+        system_msg = "Bạn là hệ thống trích xuất dữ liệu phần cứng Samsung chuyên nghiệp. Nhiệm vụ của bạn là đọc nội dung HTML/văn bản từ Samfw và tìm ra MÃ BUILD PDA (Firmware build number mới nhất, ví dụ dạng S948BXXU...) chính xác tuyệt đối."
+        user_msg = (
+            f"Dưới đây là nội dung trang web Samfw cho model {model} với CSC {csc}:\n\n"
+            f"{raw_text}\n\n"
+            "Hãy trích xuất DUY NHẤT mã Build PDA mới nhất, ngày vá bảo mật và ghi chú ngắn gọn theo định dạng:\n"
+            "BUILD: [mã build]\nNgày vá: [ngày]\nChi tiết:"
+        )
+        return cls.call_claude(api_key, system_msg, user_msg)
+
+    @classmethod
+    def diagnose_odin(cls, api_key: str, log_text: str) -> str:
+        """Chuyên gia Claude Doctor phân tích lỗi flash Odin"""
+        system_msg = "Bạn là chuyên gia kỹ thuật phần mềm Samsung cao cấp, chuyên khắc phục sự cố nạp firmware qua Odin."
+        user_msg = f"Hãy phân tích nguyên nhân cốt lõi và cách khắc phục chi tiết cho đoạn log Odin báo lỗi sau:\n{log_text}"
+        return cls.call_claude(api_key, system_msg, user_msg)
