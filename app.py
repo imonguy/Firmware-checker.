@@ -1,11 +1,11 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import anthropic
+from claude import ClaudeAPIClient
 
 # ================= CẤU HÌNH GIAO DIỆN (ONE UI 9) =================
 st.set_page_config(
-    page_title="Samsung Firmware Hub - Samfw & Claude AI",
+    page_title="Samsung Firmware Hub - Modular Claude AI",
     page_icon="🤖",
     layout="centered"
 )
@@ -48,13 +48,6 @@ st.markdown("""
         margin-top: 15px;
         font-size: 13px;
     }
-    .info-item span {
-        display: block;
-        color: #9ca3af;
-        font-size: 11px;
-        margin-bottom: 2px;
-        text-transform: uppercase;
-    }
     .agent-status {
         color: #38bdf8;
         font-weight: 600;
@@ -94,54 +87,29 @@ class SamfwFetcher:
             res = requests.get(target_url, headers=headers, timeout=6)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
-                # Lấy toàn bộ văn bản sạch trên trang để cung cấp context cho Claude AI phân tích
-                return soup.get_text(separator="\n", strip=True)[:15000] # Giới hạn token an toàn
+                return soup.get_text(separator="\n", strip=True)[:15000]
         except Exception as e:
             return f"Lỗi kết nối mạng: {str(e)}"
         return "Không thể truy xuất nội dung trang web."
 
-
-# ================= 2. CLAUDE API AGENT (BỘ NÃO SIÊU CẤP) =================
-class ClaudeMasterAgent:
-    @staticmethod
-    def ask_claude(api_key: str, system_prompt: str, user_prompt: str) -> str:
-        if not api_key:
-            return "⚠️ Vui lòng nhập Anthropic API Key của bạn ở thanh Sidebar bên trái để kích hoạt AI."
-        try:
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-sonnet-20241022", # Model tối tân với khả năng đọc hiểu context web cực mạnh
-                max_tokens=1500,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
-            )
-            return message.content[0].text
-        except Exception as e:
-            return f"❌ Lỗi gọi Claude API: {str(e)}"
-
-
-# ================= 3. THANH SIDEBAR (CÀI ĐẶT API KEY) =================
+# ================= 2. SIDEBAR CẤU HÌNH API KEY =================
 st.sidebar.markdown("### ⚙️ Cấu hình Claude API")
-user_api_key = st.sidebar.text_input("Nhập Anthropic API Key (sk-ant-...)", type="password", help="Khóa bảo mật cá nhân dùng để gọi Claude AI mạnh nhất.")
+user_api_key = st.sidebar.text_input("Nhập Anthropic API Key (sk-ant-...)", type="password", help="Khóa API cá nhân dùng để gọi Claude AI.")
 st.sidebar.markdown("---")
-st.sidebar.markdown("💡 **Mẹo:** Key được mã hóa an toàn trên phiên làm việc của bạn để phân tích dữ liệu trực tiếp từ Samfw.")
 
-# Khởi tạo trạng thái phiên làm việc
 if 'latest_build' not in st.session_state:
-    st.session_state['latest_build'] = "Chưa quét (Nhấn nút bên dưới để bắt đầu)"
-if 'raw_context' not in st.session_state:
-    st.session_state['raw_context'] = ""
+    st.session_state['latest_build'] = "Chưa quét dữ liệu (Nhấn nút bên dưới để bắt đầu)"
 
 st.title("📱 Samsung Firmware Hub")
-st.caption("Live Samfw Parser & Claude 3.5 Sonnet Master Agent")
+st.caption("Modular Samfw Crawler & Claude AI API")
 
-tab1, tab2 = st.tabs(["🌐 AI Samfw Parser", "🧠 Claude Deep Intelligence"])
+tab1, tab2 = st.tabs(["🌐 Samfw AI Parser", "🧠 Claude Deep Intelligence"])
 
-# --- TAB 1: CÀO & AI PHÂN TÍCH MÃ BUILD CHÍNH XÁC ---
+# --- TAB 1: CÀO & AI PHÂN TÍCH MÃ BUILD ---
 with tab1:
     st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
     st.subheader("🌐 Trí tuệ nhân tạo quét Samfw")
-    st.write("Hệ thống cào nội dung trang web Samfw và để Claude AI đọc, lọc ra chính xác phiên bản firmware mới nhất.")
+    st.write("Hệ thống cào nội dung Samfw và chuyển giao cho Claude API xử lý trích xuất thông minh.")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -151,20 +119,12 @@ with tab1:
         sel_csc_name = st.selectbox("Khu vực (CSC)", list(SamfwFetcher.POPULAR_CSCS.keys()))
         target_csc = SamfwFetcher.POPULAR_CSCS[sel_csc_name]
         
-    if st.button("🚀 Quét & Trích xuất bằng Claude AI", type="primary", use_container_width=True):
-        with st.spinner("Đang kết nối Samfw và nhờ Claude AI phân tích dữ liệu..."):
-            # Bước 1: Lấy raw text từ Samfw
+    if st.button("🚀 Quét & Phân tích bằng Claude AI", type="primary", use_container_width=True):
+        with st.spinner("Đang kết nối Samfw và gọi Claude API phân tích..."):
             raw_text = SamfwFetcher.get_raw_page_text(target_model, target_csc)
-            st.session_state['raw_context'] = raw_text
-            
-            # Bước 2: Dùng Claude API để phân tích chính xác mã build mới nhất từ raw text
-            system_msg = "Bạn là một hệ thống trích xuất dữ liệu phần cứng Samsung chuyên nghiệp. Nhiệm vụ của bạn là đọc nội dung văn bản từ trang Samfw và tìm ra MÃ BUILD PDA (Firmware build number mới nhất, ví dụ dạng S948BXXU...) chính xác tuyệt đối."
-            user_msg = f"Dưới đây là nội dung văn bản được cào từ trang Samfw cho model {target_model} với CSC {target_csc}:\n\n{raw_text}\n\nNhiệm vụ: Hãy trích xuất DUY NHẤT mã Build PDA mới nhất. Nếu tìm thấy, hãy định dạng trả về theo cấu trúc:\nBUILD: [mã build]\nNgày vá bảo mật (nếu có): [ngày]\nGhi chú ngắn gọn:"
-            
-            ai_result = ClaudeMasterAgent.ask_claude(user_api_key, system_msg, user_msg)
+            ai_result = ClaudeAPIClient.parse_samfw_firmware(user_api_key, raw_text, target_model, target_csc)
             st.session_state['latest_build'] = ai_result
-            
-        st.success("🎯 Hoàn tất phân tích dữ liệu thời gian thực từ Samfw!")
+        st.success("🎯 Hoàn tất xử lý dữ liệu thời gian thực!")
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown(f"""
@@ -175,41 +135,41 @@ with tab1:
         </div>
         <div style="clear: both;"></div>
         <div style="margin-top: 15px; background: #222630; padding: 16px; border-radius: 16px; font-size: 14px; line-height: 1.6;">
-            <strong>Kết quả phân tích từ Claude AI:</strong><br>
+            <strong>Kết quả từ Claude API:</strong><br>
             {st.session_state['latest_build'].replace(chr(10), '<br>')}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- TAB 2: CHUYÊN GIA PHÂN TÍCH & CHẨN ĐOÁN ODIN ---
+# --- TAB 2: CHUYÊN GIA PHÂN TÍCH & ODIN DOCTOR ---
 with tab2:
     st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
     st.subheader("🧠 Claude AI Master Brain")
-    st.write("Yêu cầu Claude AI đánh giá chuyên sâu bản dựng firmware hoặc hỗ trợ xử lý lỗi khi flash qua Odin.")
+    st.write("Đánh giá chuyên sâu bản dựng firmware hoặc chẩn đoán lỗi khi nạp qua Odin.")
     
-    action_mode = st.selectbox("Chọn tác vụ chuyên sâu", ["Đánh giá toàn diện phiên bản firmware hiện tại", "Chẩn đoán lỗi Odin qua chuỗi Log"])
+    action_mode = st.selectbox("Chọn tác vụ", ["Đánh giá toàn diện phiên bản firmware", "Chẩn đoán lỗi Odin qua Log"])
     
     if "Đánh giá" in action_mode:
-        prompt_text = st.text_area("Yêu cầu cụ thể cho Claude", value=f"Hãy phân tích mức độ ổn định, các cải tiến về bảo mật và hiệu suất NPU trên Android 17 (One UI 9) cho bản dựng vừa quét được của thiết bị {target_model} khu vực {target_csc}.")
-        if st.button("🚀 Gửi yêu cầu phân tích", type="primary", use_container_width=True):
-            with st.spinner("Claude AI đang xử lý báo cáo chuyên sâu..."):
-                response_text = ClaudeMasterAgent.ask_claude(user_api_key, "Bạn là Claude Opus 5.5 / Claude 3.5 Sonnet, chuyên gia kỹ thuật phần mềm Samsung cao cấp.", prompt_text)
+        custom_prompt = st.text_area("Yêu cầu cho Claude", value=f"Hãy phân tích mức độ ổn định và cải tiến bảo mật của bản dựng firmware cho thiết bị {target_model} khu vực {target_csc}.")
+        if st.button("🚀 Gửi yêu cầu", type="primary", use_container_width=True):
+            with st.spinner("Claude đang phân tích..."):
+                resp = ClaudeAPIClient.call_claude(user_api_key, "Bạn là chuyên gia kỹ thuật phần mềm Samsung cao cấp.", custom_prompt)
             st.markdown(f"""
-            <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; color:#f0f2f5; line-height: 1.6;">
-                {response_text.replace(chr(10), '<br>')}
+            <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; line-height: 1.6;">
+                {resp.replace(chr(10), '<br>')}
             </div>
             """, unsafe_allow_html=True)
     else:
-        log_input = st.text_area("Dán đoạn log Odin đang báo lỗi (FAIL!, Auth, PIT error...)")
+        log_input = st.text_area("Dán log Odin báo lỗi (FAIL!, Auth error...)")
         if st.button("🛠️ Claude Doctor Chẩn Đoán", type="primary", use_container_width=True):
             if not log_input.strip():
-                st.warning("Vui lòng dán nội dung log Odin trước.")
+                st.warning("Vui lòng dán nội dung log Odin.")
             else:
-                with st.spinner("Claude đang mổ xẻ mã lỗi log..."):
-                    diag_text = ClaudeMasterAgent.ask_claude(user_api_key, "Bạn là chuyên gia khắc phục sự cố phần cứng Samsung qua công cụ Odin.", f"Hãy phân tích nguyên nhân cốt lõi và hướng dẫn khắc phục chi tiết cho đoạn log Odin sau:\n{log_input}")
+                with st.spinner("Claude đang phân tích mã lỗi log..."):
+                    diag = ClaudeAPIClient.diagnose_odin(user_api_key, log_input)
                 st.markdown(f"""
-                <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; color:#f0f2f5; line-height: 1.6;">
-                    {diag_text.replace(chr(10), '<br>')}
+                <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; line-height: 1.6;">
+                    {diag.replace(chr(10), '<br>')}
                 </div>
                 """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
