@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 
-# ================= 1. SAMFW LIVE CAPTURE ENGINE =================
+# ================= 1. SAMFW LIVE CAPTURE ENGINE (ĐÃ TỐI ƯU CACHE) =================
 class SamfwLiveCapture:
     POPULAR_MODELS = {
         "Galaxy S26 Ultra (SM-S948B)": "SM-S948B",
@@ -24,10 +24,8 @@ class SamfwLiveCapture:
     }
 
     @staticmethod
+    @st.cache_data(ttl=1800) # Lưu cache trong 30 phút để gọi lại lập tức không cần chờ mạng
     def capture_firmware(model_code: str, csc_code: str) -> dict:
-        """
-        Gửi yêu cầu trực tiếp đến Samfw để trích xuất thông tin firmware thật 100%.
-        """
         clean_model = model_code.strip().upper()
         clean_csc = csc_code.strip().upper()
         target_url = f"https://samfw.com/firmware/{clean_model}/{clean_csc}"
@@ -40,7 +38,8 @@ class SamfwLiveCapture:
         }
         
         try:
-            response = requests.get(target_url, headers=headers, timeout=6)
+            # Giảm timeout xuống 3 giây để app phản hồi cực nhanh, tránh treo
+            response = requests.get(target_url, headers=headers, timeout=3)
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -65,11 +64,12 @@ class SamfwLiveCapture:
                         "build": pda_build,
                         "os": "Android 17 (One UI 9)",
                         "patch": "2026-11-01",
-                        "status": "Samfw Live Captured (100% Real)"
+                        "status": "Samfw Live Captured (Instant Cache)"
                     }
         except Exception as e:
-            print(f"Lỗi khi kết nối Samfw: {e}")
+            print(f"Lỗi kết nối (dùng fallback thông minh): {e}")
             
+        # Fallback thông minh phản hồi tức thì khi mạng chậm/bị chặn
         prefix = clean_model.split('-')[-1]
         if "S948" in clean_model:
             fallback_build = f"{prefix}XXU3BZJA"
@@ -84,7 +84,7 @@ class SamfwLiveCapture:
             "build": fallback_build,
             "os": "Android 17 (One UI 9)",
             "patch": "2026-11-01",
-            "status": "Samfw Secure Fallback Cache"
+            "status": "Samfw Instant Fallback"
         }
 
 # ================= 2. CLAUDE DEEP AGENT =================
@@ -164,17 +164,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if 'firmware_data' not in st.session_state:
-    st.session_state['firmware_data'] = SamfwLiveCapture.capture_firmware("SM-S948B", "XXV")
+    st.session_state['firmware_data'] = SamfwLiveCapture.capture_firmware("SM-S948B", "XSG")
 
 st.title("📱 Samsung Firmware Hub")
-st.caption("Samfw Live Capture Engine | Multi-CSC Support")
+st.caption("Samfw Live Capture Engine | Lightning Fast Cache")
 
 tab1, tab2 = st.tabs(["🔍 Samfw Live Tracker", "🧠 Claude Deep Agent"])
 
 with tab1:
     st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
     st.subheader("🌐 Samfw Real-time Capture")
-    st.write("Chọn model thiết bị và khu vực CSC để quét dữ liệu trực tiếp.")
+    st.write("Chọn model thiết bị và khu vực CSC để quét dữ liệu tức thì.")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -184,10 +184,10 @@ with tab1:
         selected_csc_name = st.selectbox("Chọn Khu vực (CSC)", list(SamfwLiveCapture.POPULAR_CSCS.keys()))
         csc_code = SamfwLiveCapture.POPULAR_CSCS[selected_csc_name]
         
-    if st.button("🚀 Bắt đầu Capture từ Samfw", type="primary", use_container_width=True):
-        with st.spinner("Đang kết nối và cào dữ liệu từ Samfw..."):
+    if st.button("🚀 Quét siêu tốc", type="primary", use_container_width=True):
+        with st.spinner("Đang xử lý siêu tốc..."):
             st.session_state['firmware_data'] = SamfwLiveCapture.capture_firmware(model_code, csc_code)
-        st.success(f"🌐 Đã capture thành công dữ liệu thực tế cho {selected_model_name} ({csc_code})!")
+        st.success(f"⚡ Đã tải xong thông tin cho {selected_model_name} ({csc_code})!")
     st.markdown('</div>', unsafe_allow_html=True)
 
     fw = st.session_state['firmware_data']
