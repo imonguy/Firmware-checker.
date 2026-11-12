@@ -3,11 +3,10 @@ from google import genai
 import streamlit as st
 
 class GeminiAgent:
-    """Agent sử dụng Gemini API miễn phí của Google để phân tích và bóc tách dữ liệu"""
+    """Agent sử dụng mô hình Gemini 3.8 Flash mới nhất để phân tích và bóc tách firmware thực tế"""
     
     @staticmethod
     def get_client():
-        # Tự động lấy API key từ Streamlit Secrets hoặc biến môi trường
         api_key = None
         try:
             if "GEMINI_API_KEY" in st.secrets:
@@ -24,25 +23,26 @@ class GeminiAgent:
     def call_gemini(cls, prompt: str) -> str:
         try:
             client = cls.get_client()
+            # Nâng cấp lên model Gemini 3.8 Flash thông minh nhất cho agent và cào dữ liệu
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-3.8-flash',
                 contents=prompt,
             )
             return response.text.strip()
         except Exception as e:
-            return f"❌ Lỗi Gemini API: {str(e)}. Hãy cấu hình GEMINI_API_KEY trong Streamlit Secrets."
+            return f"❌ Lỗi Gemini API: {str(e)}. Hãy kiểm tra lại GEMINI_API_KEY trong Streamlit Secrets."
 
     @classmethod
     def parse_samfw(cls, raw_text: str, model: str, csc: str) -> str:
         prompt = (
-            f"Bạn là chuyên gia phần cứng Samsung. Dưới đây là nội dung văn bản thô được cào trực tiếp từ trang Samfw cho model {model} (CSC: {csc}):\n\n"
+            f"Bạn là chuyên gia kỹ thuật phần cứng Samsung. Dưới đây là nội dung văn bản thô được cào từ trang Samfw cho thiết bị [{model}] với khu vực [{csc}]:\n\n"
             f"{raw_text}\n\n"
-            "Nhiệm vụ: Phân tích kỹ nội dung trên và trích xuất CHÍNH XÁC 100% mã Build PDA firmware mới nhất.\n"
-            "Yêu cầu nghiêm ngặt: Chỉ trả về chuỗi mã Build thực tế (ví dụ dạng S948BXXU3...), tuyệt đối không bịa đặt hay dùng mã giả."
+            "Nhiệm vụ: Phân tích kỹ nội dung trên, bóc tách và trả về CHÍNH XÁC 100% mã Build PDA firmware thực tế mới nhất.\n"
+            "Yêu cầu nghiêm ngặt: Chỉ cung cấp chuỗi mã Build (ví dụ: S948BXXU...), không thêm giải thích rườm rà."
         )
         return cls.call_gemini(prompt)
 
     @classmethod
     def diagnose_odin(cls, log_text: str) -> str:
-        prompt = f"Phân tích chuỗi log Odin báo lỗi sau, tìm nguyên nhân gốc rễ và cách khắc phục an toàn:\n{log_text}"
+        prompt = f"Phân tích chuỗi log Odin báo lỗi sau dưới góc độ chuyên gia hệ thống, tìm nguyên nhân gốc rễ và cách khắc phục an toàn:\n{log_text}"
         return cls.call_gemini(prompt)
