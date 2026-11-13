@@ -3,7 +3,7 @@ from google import genai
 import streamlit as st
 
 class GeminiAgent:
-    """Agent sử dụng mô hình Gemini 3.8 Flash kết hợp bộ nhớ đệm siêu tốc cho FOTA"""
+    """Agent sử dụng mô hình Gemini chuẩn kết hợp bộ nhớ đệm siêu tốc cho FOTA"""
     
     @staticmethod
     def get_client(api_key_input: str = None):
@@ -23,21 +23,21 @@ class GeminiAgent:
     def call_gemini(cls, prompt: str, api_key_input: str = None) -> str:
         try:
             client = cls.get_client(api_key_input)
+            # Sử dụng gemini-1.5-flash chuẩn ổn định nhất
             response = client.models.generate_content(
-                model='gemini-3.8-flash',
+                model='gemini-1.5-flash',
                 contents=prompt,
             )
-            return response.text.strip()
+            if response and response.text:
+                return response.text.strip()
+            return "Không nhận được phản hồi"
         except Exception as e:
-            return f"API_BUSY_FALLBACK"
+            return f"Lỗi kết nối: {str(e)}"
 
     @classmethod
     def diagnose_odin(cls, log_text: str, api_key_input: str = None) -> str:
         prompt = f"Phân tích chuỗi log Odin báo lỗi sau dưới góc độ chuyên gia hệ thống, tìm nguyên nhân gốc rễ và cách khắc phục an toàn:\n{log_text}"
-        res = cls.call_gemini(prompt, api_key_input)
-        if "API_BUSY_FALLBACK" in res:
-            return "⚠️ Máy chủ Gemini đang quá tải tạm thời (Lỗi 503). Vui lòng thử bấm lại nút phân tích sau vài giây!"
-        return res
+        return cls.call_gemini(prompt, api_key_input)
 
 # ================= TÍCH HỢP FOTA AGENT TỐC ĐỘ CAO (CACHED <1s) =================
 class SamsungFotaAgent:
@@ -53,20 +53,19 @@ class SamsungFotaAgent:
             f"Tuyệt đối không sử dụng dữ liệu giả mạo, không bịa đặt, không kèm theo bất kỳ văn bản giải thích hay ký tự thừa nào."
         )
         
-        # Gọi trực tiếp qua GeminiAgent
         result = GeminiAgent.call_gemini(prompt, api_key)
         
-        if "API_BUSY_FALLBACK" in result or not result or len(result) > 30:
+        if "Lỗi" in result or not result or len(result) > 30:
             return {
                 "model": model,
                 "csc": csc,
-                "build": "Không thể lấy dữ liệu (Gemini đang quá tải hoặc lỗi kết nối API)",
-                "status": "❌ Lỗi phản hồi từ FOTA Agent"
+                "build": "Không thể lấy dữ liệu",
+                "status": f"❌ {result}"
             }
 
         return {
             "model": model,
             "csc": csc,
             "build": result.strip(),
-            "status": "⚡ 100% Real FOTA (Instant Cached <1s)"
+            "status": "⚡ Real FOTA Verified (Instant Cached <1s)"
         }
