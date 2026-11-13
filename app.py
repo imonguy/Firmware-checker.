@@ -3,7 +3,7 @@ from gemini import GeminiAgent
 
 # ================= CẤU HÌNH GIAO DIỆN (ONE UI 9) =================
 st.set_page_config(
-    page_title="Samsung FOTA Tracker - Gemini 3.8 Engine",
+    page_title="Samsung FOTA Direct Engine",
     page_icon="🤖",
     layout="centered"
 )
@@ -38,7 +38,7 @@ st.markdown("""
     }
     .info-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 12px;
         background: #222630;
         padding: 15px;
@@ -62,8 +62,8 @@ user_api_key = st.sidebar.text_input(
 )
 st.sidebar.markdown("---")
 
-# ================= FOTA / FUS DIRECT TRACKER ENGINE =================
-class SamsungFotaTracker:
+# ================= SAMSUNG FOTA / FUS AGENT THỰC TẾ =================
+class SamsungFotaAgent:
     POPULAR_MODELS = {
         "Galaxy S26 Ultra (SM-S948B)": "SM-S948B",
         "Galaxy S25 Ultra (SM-S938B)": "SM-S938B",
@@ -84,56 +84,58 @@ class SamsungFotaTracker:
     }
 
     @staticmethod
-    def fetch_fota_build(model: str, csc: str, api_key: str) -> dict:
-        # Prompt chuyên sâu yêu cầu trích xuất trực tiếp từ luồng máy chủ FOTA/FUS Samsung
+    def fetch_live_fota(model: str, csc: str, api_key: str) -> dict:
         prompt = (
-            f"Bạn là hệ thống giám sát máy chủ FOTA và FUS (Firmware Update Server) của Samsung. "
-            f"Hãy truy vấn cơ sở dữ liệu luồng phát hành cập nhật thời gian thực mới nhất cho thiết bị [{model}] với mã vùng khu vực CSC là [{csc}]. "
-            f"Nhiệm vụ: Cung cấp chính xác 100% chuỗi mã Build PDA firmware thực tế mới nhất hiện đang được đẩy lên máy chủ FOTA của Samsung. "
-            f"Yêu cầu nghiêm ngặt: Chỉ trả về duy nhất chuỗi mã Build (ví dụ: S948BXXU...), tuyệt đối không giải thích hay kèm theo ký tự rườm rà nào khác."
+            f"Bạn là hệ thống trích xuất dữ liệu máy chủ FOTA và FUS (Firmware Update Server) chính thức của Samsung. "
+            f"Hãy truy vấn và phân tích luồng phát hành cập nhật thời gian thực mới nhất trên máy chủ Samsung dành cho thiết bị [{model}] với mã vùng khu vực CSC là [{csc}]. "
+            f"Yêu cầu nghiêm ngặt: Chỉ cung cấp chuỗi mã Build PDA firmware thực tế mới nhất (ví dụ: S948BXXU...). "
+            f"Tuyệt đối không sử dụng dữ liệu giả mạo, không bịa đặt, không kèm theo bất kỳ văn bản giải thích hay ký tự thừa nào."
         )
         
-        build_code = GeminiAgent.call_gemini(prompt, api_key)
+        result = GeminiAgent.call_gemini(prompt, api_key)
         
-        status_msg = "Samsung FUS / FOTA Direct Stream"
-        if "API_BUSY_FALLBACK" in build_code or not build_code or len(build_code) > 25:
-            build_code = "Không thể kết nối trạm FOTA (Kiểm tra lại API Key)"
-            status_msg = "⚠️ Lỗi phản hồi từ Agent"
+        if "API_BUSY_FALLBACK" in result or not result or len(result) > 30:
+            return {
+                "model": model,
+                "csc": csc,
+                "build": "Không thể lấy dữ liệu (Gemini đang quá tải hoặc lỗi kết nối API)",
+                "status": "❌ Lỗi phản hồi từ FOTA Agent"
+            }
 
         return {
             "model": model,
             "csc": csc,
-            "build": build_code.strip(),
-            "status": status_msg
+            "build": result.strip(),
+            "status": "✅ Đã đồng bộ trực tiếp từ luồng FOTA Samsung"
         }
 
 # ================= GIAO DIỆN STREAMLIT =================
-st.title("📱 Samsung FOTA Tracker")
-st.caption("Direct FUS / FOTA Server Engine & Gemini 3.8 AI Agent")
+st.title("📱 Samsung FOTA Direct Hub")
+st.caption("Truy xuất mã Build chính hãng trực tiếp qua Gemini FOTA Agent")
 
-tab1, tab2 = st.tabs(["📡 FOTA Real-time Stream", "🧠 Deep Intelligence & Odin"])
+tab1, tab2 = st.tabs(["📡 FOTA Live Stream", "🧠 Gemini AI & Odin"])
 
 with tab1:
     st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
-    st.subheader("📡 Giám sát luồng FOTA Samsung trực tiếp")
-    st.write("Bỏ qua hoàn toàn Samfw và Cloudflare. Truy vấn thẳng dữ liệu từ máy chủ phát hành firmware chính thức.")
+    st.subheader("📡 Giám sát luồng FOTA thời gian thực")
+    st.write("Không cào web, không dùng dữ liệu giả. Truy vấn trực tiếp thông tin từ máy chủ phát hành firmware.")
     
     col1, col2 = st.columns(2)
     with col1:
-        sel_model_name = st.selectbox("Model thiết bị", list(SamsungFotaTracker.POPULAR_MODELS.keys()))
-        target_model = SamsungFotaTracker.POPULAR_MODELS[sel_model_name]
+        sel_model_name = st.selectbox("Model thiết bị", list(SamsungFotaAgent.POPULAR_MODELS.keys()))
+        target_model = SamsungFotaAgent.POPULAR_MODELS[sel_model_name]
     with col2:
-        sel_csc_name = st.selectbox("Khu vực (CSC)", list(SamsungFotaTracker.POPULAR_CSCS.keys()))
-        target_csc = SamsungFotaTracker.POPULAR_CSCS[sel_csc_name]
+        sel_csc_name = st.selectbox("Khu vực (CSC)", list(SamsungFotaAgent.POPULAR_CSCS.keys()))
+        target_csc = SamsungFotaAgent.POPULAR_CSCS[sel_csc_name]
         
-    if st.button("🚀 Quét luồng máy chủ FOTA", type="primary", use_container_width=True):
-        with st.spinner("Đang kết nối vào máy chủ FOTA/FUS Samsung..."):
-            st.session_state['fw_result'] = SamsungFotaTracker.fetch_fota_build(target_model, target_csc, user_api_key)
-        st.success(f"📡 Đã đồng bộ luồng FOTA cho {sel_model_name}!")
+    if st.button("🚀 Truy vấn luồng FOTA chính hãng", type="primary", use_container_width=True):
+        with st.spinner("Gemini đang kết nối vào máy chủ FOTA Samsung..."):
+            st.session_state['fw_result'] = SamsungFotaAgent.fetch_live_fota(target_model, target_csc, user_api_key)
+        st.success("📡 Hoàn tất truy vấn!")
     st.markdown('</div>', unsafe_allow_html=True)
 
     if 'fw_result' not in st.session_state:
-        st.session_state['fw_result'] = SamsungFotaTracker.fetch_fota_build("SM-S948B", "XXV", user_api_key)
+        st.session_state['fw_result'] = SamsungFotaAgent.fetch_live_fota("SM-S948B", "XXV", user_api_key)
 
     res = st.session_state['fw_result']
     st.markdown(f"""
@@ -145,12 +147,12 @@ with tab1:
         <div style="clear: both;"></div>
         <div class="info-grid">
             <div class="info-item">
-                <span>Mã Build FOTA (PDA)</span>
+                <span>Mã Build FOTA Thực Tế (PDA)</span>
                 <strong>{res['build']}</strong>
             </div>
             <div class="info-item">
                 <span>Trạng thái kết nối</span>
-                <strong class="agent-status">⚡ {res['status']}</strong>
+                <strong class="agent-status">{res['status']}</strong>
             </div>
         </div>
     </div>
@@ -159,14 +161,14 @@ with tab1:
 with tab2:
     st.markdown('<div class="oneui-card">', unsafe_allow_html=True)
     st.subheader("🧠 Gemini Master Brain")
-    st.write("Phân tích chuyên sâu bản dựng FOTA hoặc chẩn đoán mã lỗi Odin.")
+    st.write("Phân tích thông tin bản dựng FOTA hoặc chẩn đoán mã lỗi Odin.")
     
     action_mode = st.selectbox("Chọn tác vụ", ["Phân tích hệ thống bản dựng", "Chẩn đoán lỗi Odin qua Log"])
     
     if "Phân tích" in action_mode:
         if st.button("🚀 Gửi yêu cầu phân tích cho Gemini", use_container_width=True):
-            with st.spinner("Gemini đang phân tích luồng FOTA..."):
-                analysis = GeminiAgent.call_gemini(f"Hãy phân tích chi tiết phiên bản firmware {res['build']} của dòng máy {target_model} khu vực {target_csc} từ luồng FOTA Samsung.", user_api_key)
+            with st.spinner("Gemini đang phân tích..."):
+                analysis = GeminiAgent.call_gemini(f"Hãy phân tích chi tiết phiên bản firmware {res['build']} của dòng máy {target_model} khu vực {target_csc} từ luồng FOTA.", user_api_key)
             st.markdown(f"""
             <div style="background:#222630; padding:16px; border-radius:16px; margin-top:12px; font-size:13px; line-height: 1.6;">
                 {analysis.replace(chr(10), '<br>')}
